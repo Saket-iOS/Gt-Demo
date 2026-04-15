@@ -10,8 +10,7 @@ import SwiftUI
 
 struct ForgotPasswordView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var email: String = ""
-    @State private var didSubmit: Bool = false
+    @State private var viewModel = ForgotPasswordViewModel()
     @FocusState private var isEmailFocused: Bool
 
     var body: some View {
@@ -91,7 +90,7 @@ struct ForgotPasswordView: View {
 
     private var card: some View {
         VStack(spacing: 20) {
-            if didSubmit {
+            if viewModel.didSubmit {
                 successContent
             } else {
                 formContent
@@ -107,12 +106,25 @@ struct ForgotPasswordView: View {
                 )
                 .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 10)
         )
-        .animation(.easeInOut(duration: 0.3), value: didSubmit)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.didSubmit)
     }
 
     private var formContent: some View {
         VStack(spacing: 20) {
             emailField
+            if let message = viewModel.errorMessage {
+                Text(message)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.red.opacity(0.85))
+                    )
+            }
             sendButton
             backToLoginButton
         }
@@ -133,7 +145,7 @@ struct ForgotPasswordView: View {
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("We've sent a password reset link to\n\(email)")
+            Text("We've sent a password reset link to\n\(viewModel.email)")
                 .font(.system(size: 14))
                 .foregroundStyle(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -172,19 +184,19 @@ struct ForgotPasswordView: View {
                 .frame(width: 22)
 
             ZStack(alignment: .leading) {
-                if email.isEmpty {
+                if viewModel.email.isEmpty {
                     Text("Email Address")
                         .foregroundStyle(.white.opacity(0.55))
                         .font(.system(size: 15))
                 }
-                TextField("", text: $email)
+                TextField("", text: $viewModel.email)
                     .focused($isEmailFocused)
                     .keyboardType(.emailAddress)
                     .textContentType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.send)
-                    .onSubmit(submit)
+                    .onSubmit { Task { await submit() } }
                     .foregroundStyle(.white)
                     .tint(.white)
                     .font(.system(size: 15))
@@ -207,28 +219,37 @@ struct ForgotPasswordView: View {
     }
 
     private var sendButton: some View {
-        Button(action: submit) {
-            Text("Send Reset Link")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.55, green: 0.35, blue: 0.95),
-                                    Color(red: 0.85, green: 0.40, blue: 0.75)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+        Button {
+            Task { await submit() }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.55, green: 0.35, blue: 0.95),
+                                Color(red: 0.85, green: 0.40, blue: 0.75)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
-                        .shadow(color: Color(red: 0.55, green: 0.35, blue: 0.95).opacity(0.5),
-                                radius: 12, x: 0, y: 6)
-                )
+                    )
+                    .shadow(color: Color(red: 0.55, green: 0.35, blue: 0.95).opacity(0.5),
+                            radius: 12, x: 0, y: 6)
+
+                if viewModel.isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                } else {
+                    Text("Send Reset Link")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(height: 54)
         }
+        .disabled(viewModel.isLoading)
         .padding(.top, 4)
     }
 
@@ -246,9 +267,9 @@ struct ForgotPasswordView: View {
         }
     }
 
-    private func submit() {
+    private func submit() async {
         isEmailFocused = false
-        didSubmit = true
+        await viewModel.sendResetLink()
     }
 }
 
