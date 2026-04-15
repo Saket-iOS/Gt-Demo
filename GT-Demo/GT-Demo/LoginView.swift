@@ -8,10 +8,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    @State private var email: String = ""
-    @State private var password: String = ""
-    @State private var isPasswordVisible: Bool = false
-    @State private var isLoading: Bool = false
+    @State private var viewModel = LoginViewModel()
     @FocusState private var focusedField: Field?
 
     private enum Field {
@@ -30,6 +27,21 @@ struct LoginView: View {
 
                     card
                         .padding(.horizontal, 24)
+
+                    if let message = viewModel.errorMessage {
+                        Text(message)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.red.opacity(0.85))
+                            )
+                            .padding(.horizontal, 24)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
 
                     Spacer(minLength: 20)
                 }
@@ -102,10 +114,10 @@ struct LoginView: View {
         FloatingField(
             systemImage: "envelope.fill",
             placeholder: "Email Address",
-            text: $email,
+            text: $viewModel.email,
             isFocused: focusedField == .email
         ) {
-            TextField("", text: $email)
+            TextField("", text: $viewModel.email)
                 .focused($focusedField, equals: .email)
                 .keyboardType(.emailAddress)
                 .textContentType(.emailAddress)
@@ -120,28 +132,28 @@ struct LoginView: View {
         FloatingField(
             systemImage: "lock.fill",
             placeholder: "Password",
-            text: $password,
+            text: $viewModel.password,
             isFocused: focusedField == .password,
             trailing: {
                 Button {
-                    isPasswordVisible.toggle()
+                    viewModel.isPasswordVisible.toggle()
                 } label: {
-                    Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                    Image(systemName: viewModel.isPasswordVisible ? "eye.slash.fill" : "eye.fill")
                         .foregroundStyle(.white.opacity(0.7))
                 }
             }
         ) {
             Group {
-                if isPasswordVisible {
-                    TextField("", text: $password)
+                if viewModel.isPasswordVisible {
+                    TextField("", text: $viewModel.password)
                 } else {
-                    SecureField("", text: $password)
+                    SecureField("", text: $viewModel.password)
                 }
             }
             .focused($focusedField, equals: .password)
             .textContentType(.password)
             .submitLabel(.go)
-            .onSubmit(login)
+            .onSubmit { Task { await login() } }
         }
     }
 
@@ -149,7 +161,7 @@ struct LoginView: View {
         HStack {
             Spacer()
             Button {
-                forgotPassword()
+                Task { await viewModel.forgotPassword() }
             } label: {
                 Text("Forgot Password?")
                     .font(.system(size: 14, weight: .semibold))
@@ -159,7 +171,9 @@ struct LoginView: View {
     }
 
     private var loginButton: some View {
-        Button(action: login) {
+        Button {
+            Task { await login() }
+        } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(
@@ -175,7 +189,7 @@ struct LoginView: View {
                     .shadow(color: Color(red: 0.55, green: 0.35, blue: 0.95).opacity(0.5),
                             radius: 12, x: 0, y: 6)
 
-                if isLoading {
+                if viewModel.isLoading {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .tint(.white)
@@ -187,7 +201,7 @@ struct LoginView: View {
             }
             .frame(height: 54)
         }
-        .disabled(isLoading)
+        .disabled(viewModel.isLoading)
         .padding(.top, 4)
     }
 
@@ -228,15 +242,9 @@ struct LoginView: View {
         .padding(.top, 4)
     }
 
-    private func login() {
+    private func login() async {
         focusedField = nil
-        isLoading = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            isLoading = false
-        }
-    }
-
-    private func forgotPassword() {
+        await viewModel.login()
     }
 }
 
